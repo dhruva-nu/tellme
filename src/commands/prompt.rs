@@ -9,25 +9,9 @@ use super::Ctx;
 use crate::config::OutputFormat;
 use crate::error::{Error, Result};
 use crate::git::Repo;
+use crate::lineref::parse_selector;
 use crate::paths::{self, Layout};
 use crate::store::Store;
-
-/// Parse a line selector like `7` or `4-7` into an inclusive `(start, end)`.
-pub fn parse_line_range(s: &str) -> Result<(i64, i64)> {
-    let bad = || Error::Other(format!("invalid line selector `{s}` (expected N or N-M)"));
-    let parse = |t: &str| t.trim().parse::<i64>().map_err(|_| bad());
-    let (start, end) = match s.split_once('-') {
-        Some((a, b)) => (parse(a)?, parse(b)?),
-        None => {
-            let n = parse(s)?;
-            (n, n)
-        }
-    };
-    if start < 1 || end < start {
-        return Err(bad());
-    }
-    Ok((start, end))
-}
 
 /// Open the repo + store for a command, erroring clearly when uninitialized.
 fn open(ctx: &Ctx) -> Result<(Repo, Layout, Store)> {
@@ -46,7 +30,7 @@ pub fn add(
     message: Option<String>,
 ) -> Result<()> {
     let (repo, layout, store) = open(ctx)?;
-    let (line_start, line_end) = parse_line_range(line)?;
+    let (line_start, line_end) = parse_selector(line)?;
     let rel = paths::repo_relative(layout.repo_root(), &ctx.start_dir, file)?;
 
     // Anchor at the line's current blame commit so query-time blame matches.
@@ -152,21 +136,6 @@ fn read_stdin() -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_single_and_range() {
-        assert_eq!(parse_line_range("7").unwrap(), (7, 7));
-        assert_eq!(parse_line_range("4-7").unwrap(), (4, 7));
-        assert_eq!(parse_line_range(" 4 - 7 ").unwrap(), (4, 7));
-    }
-
-    #[test]
-    fn rejects_bad_selectors() {
-        assert!(parse_line_range("0").is_err());
-        assert!(parse_line_range("7-4").is_err());
-        assert!(parse_line_range("abc").is_err());
-        assert!(parse_line_range("").is_err());
-    }
 
     #[test]
     fn snippet_truncates_long_first_line() {
