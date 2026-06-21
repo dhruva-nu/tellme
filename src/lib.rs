@@ -10,6 +10,7 @@ pub mod blame;
 pub mod capture;
 pub mod cli;
 pub mod commands;
+pub mod completion;
 pub mod config;
 pub mod error;
 pub mod git;

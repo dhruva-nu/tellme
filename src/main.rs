@@ -6,12 +6,16 @@
 
 use std::process::ExitCode;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use tellme::cli::Cli;
 use tellme::commands;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> ExitCode {
+    // Dynamic completion: when invoked by a shell's completer (the `COMPLETE`
+    // env var is set), emit candidates and exit before any real work happens.
+    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
+
     let cli = Cli::parse();
     init_tracing(cli.verbose);
 
