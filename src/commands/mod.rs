@@ -6,6 +6,7 @@
 //! [`Error::NotImplemented`]: crate::error::Error::NotImplemented
 
 mod capture;
+mod decision;
 mod flow;
 mod hook;
 mod init;
@@ -19,7 +20,7 @@ use std::path::PathBuf;
 
 use crate::cli::{Cli, Command, DecisionCommand, HookCommand, PromptCommand};
 use crate::config::OutputFormat;
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 /// Per-invocation context shared by all handlers.
 pub struct Ctx {
@@ -76,9 +77,12 @@ pub fn dispatch(cli: Cli) -> Result<()> {
         ),
         Command::Journey { file, endpoint } => journey::run(&ctx, &file, &endpoint),
         Command::Decision { command } => match command {
-            DecisionCommand::Add { .. } => {
-                not_implemented("decision add", "Phase 7: Decision Editor")
-            }
+            DecisionCommand::Add {
+                file,
+                var,
+                line,
+                message,
+            } => decision::add(&ctx, &file, var.as_deref(), line, message),
         },
         Command::Prompt { command } => match command {
             PromptCommand::Add {
@@ -96,8 +100,4 @@ pub fn dispatch(cli: Cli) -> Result<()> {
             HookCommand::Uninstall { dry_run } => hook::uninstall(&ctx, dry_run),
         },
     }
-}
-
-fn not_implemented(command: &'static str, phase: &'static str) -> Result<()> {
-    Err(Error::NotImplemented { command, phase })
 }

@@ -114,12 +114,15 @@ pub enum DecisionCommand {
     Add {
         /// Source file.
         file: PathBuf,
-        /// Attach to a variable.
+        /// Attach to a variable (its first assignment line is used if --line is omitted).
         #[arg(long, value_name = "NAME")]
         var: Option<String>,
         /// Attach to a line number.
         #[arg(long, value_name = "N")]
         line: Option<usize>,
+        /// Decision text; if omitted, open $EDITOR.
+        #[arg(short = 'm', long, value_name = "TEXT")]
+        message: Option<String>,
     },
 }
 

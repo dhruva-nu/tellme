@@ -52,6 +52,11 @@ impl Repo {
         self.inner.path().to_path_buf()
     }
 
+    /// The configured `user.name`, if any.
+    pub fn user_name(&self) -> Option<String> {
+        self.inner.config().ok()?.get_string("user.name").ok()
+    }
+
     /// The working directory (errors for bare repos).
     pub fn workdir(&self) -> Result<PathBuf> {
         self.inner

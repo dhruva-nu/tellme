@@ -62,9 +62,16 @@ fn render_text(r: &WhyResult) {
 
 fn render_entry(e: &Entry) {
     let short = &e.commit_id[..e.commit_id.len().min(8)];
-    let session = e.session.as_deref().unwrap_or("(unknown session)");
-    println!("  ● {short}  {}  — session \"{session}\"", e.commit_summary);
-    println!("    YOU: {}", e.prompt);
+    match &e.prompt {
+        Some(prompt) => {
+            let session = e.session.as_deref().unwrap_or("(unknown session)");
+            println!("  ● {short}  {}  — session \"{session}\"", e.commit_summary);
+            println!("    YOU: {prompt}");
+        }
+        None => {
+            println!("  ● {short}  {}  — decision only", e.commit_summary);
+        }
+    }
     for d in &e.decisions {
         println!("    ▸ decision: {d}");
     }
