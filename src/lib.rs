@@ -5,6 +5,7 @@
 //! integration, and configuration. Many items here are the foundation that
 //! later roadmap phases (Prompt Blame, Data Flow, …) build on.
 
+pub mod analysis;
 pub mod blame;
 pub mod capture;
 pub mod cli;
