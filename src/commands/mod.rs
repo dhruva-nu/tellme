@@ -10,6 +10,7 @@ mod hook;
 mod init;
 mod prompt;
 mod reconcile;
+mod why;
 
 use std::env;
 use std::path::PathBuf;
@@ -56,7 +57,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
     let ctx = Ctx::from_cli(&cli)?;
     match cli.command {
         Command::Init => init::run(&ctx),
-        Command::Why { .. } => not_implemented("why", "Phase 3: Prompt Blame"),
+        Command::Why { file, target } => why::run(&ctx, &file, target.as_deref()),
         Command::Flow { .. } => not_implemented("flow", "Phase 4: Data Flow Analysis"),
         Command::Journey { .. } => not_implemented("journey", "Phase 6: Cross-Layer Journey"),
         Command::Decision { command } => match command {
