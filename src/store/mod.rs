@@ -377,6 +377,25 @@ impl Store {
         })
     }
 
+    /// Pending edits attributed to a given prompt, ordered by file then line.
+    pub fn pending_edits_for_prompt(&self, prompt_id: i64) -> Result<Vec<PendingEdit>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, prompt_id, file, line_start, line_end, created_at
+             FROM pending_edit WHERE prompt_id = ?1 ORDER BY file, line_start",
+        )?;
+        let rows = stmt.query_map([prompt_id], |r| {
+            Ok(PendingEdit {
+                id: r.get(0)?,
+                prompt_id: r.get(1)?,
+                file: r.get(2)?,
+                line_start: r.get(3)?,
+                line_end: r.get(4)?,
+                created_at: r.get(5)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     /// All pending edits, oldest first.
     pub fn pending_edits(&self) -> Result<Vec<PendingEdit>> {
         let mut stmt = self.conn.prepare(
