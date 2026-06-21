@@ -91,7 +91,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
                 session,
                 message,
             } => prompt::add(&ctx, &file, &line, session.as_deref(), message),
-            PromptCommand::List { file } => prompt::list(&ctx, file.as_deref()),
+            PromptCommand::List { file, full } => prompt::list(&ctx, file.as_deref(), full),
         },
         Command::Capture => capture::run(&ctx),
         Command::Reconcile => reconcile::run(&ctx),

@@ -148,6 +148,9 @@ pub enum PromptCommand {
         /// Only prompts touching this file.
         #[arg(long, value_name = "PATH")]
         file: Option<PathBuf>,
+        /// Print the full prompt text instead of a one-line snippet.
+        #[arg(long)]
+        full: bool,
     },
 }
 

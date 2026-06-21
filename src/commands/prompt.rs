@@ -65,8 +65,8 @@ pub fn add(
     Ok(())
 }
 
-/// `tellme prompt list [--file PATH]`.
-pub fn list(ctx: &Ctx, file: Option<&Path>) -> Result<()> {
+/// `tellme prompt list [--file PATH] [--full]`.
+pub fn list(ctx: &Ctx, file: Option<&Path>, full: bool) -> Result<()> {
     let (_repo, layout, store) = open(ctx)?;
     let filter = match file {
         Some(f) => Some(paths::repo_relative(layout.repo_root(), &ctx.start_dir, f)?),
@@ -103,11 +103,12 @@ pub fn list(ctx: &Ctx, file: Option<&Path>) -> Result<()> {
             .and_then(|s| s.label.or(s.external_id))
             .unwrap_or_else(|| "?".into());
         let text = store.read_text(&p.blob_hash).unwrap_or_default();
-        rows.push((committed, session, location, snippet(&text)));
+        rows.push((committed, session, location, text));
     }
 
     match ctx.format {
         OutputFormat::Json => {
+            // JSON always carries the complete prompt text.
             let arr: Vec<_> = rows
                 .iter()
                 .map(|(committed, s, l, t)| {
@@ -121,23 +122,39 @@ pub fn list(ctx: &Ctx, file: Option<&Path>) -> Result<()> {
                 .collect();
             println!("{}", serde_json::Value::Array(arr));
         }
-        _ => render_status_list(&rows),
+        _ => render_status_list(&rows, full),
     }
     Ok(())
 }
 
 /// Render the prompt list git-status-style: green = committed, red = pending.
-fn render_status_list(rows: &[(bool, String, String, String)]) {
+/// With `full`, print the complete (multi-line) prompt text.
+fn render_status_list(rows: &[(bool, String, String, String)], full: bool) {
     if rows.is_empty() {
         println!("No prompts recorded yet.");
         return;
     }
     let (committed, pending): (Vec<_>, Vec<_>) = rows.iter().partition(|(c, ..)| *c);
 
+    let render = |marker: &str, s: &str, l: &str, t: &str, code: &str| {
+        if full {
+            println!("{}", paint(&format!("{marker} {l}  [{s}]"), code));
+            for line in t.lines() {
+                println!("      {line}");
+            }
+            println!();
+        } else {
+            println!(
+                "{}",
+                paint(&format!("{marker} {l}  [{s}]  {}", snippet(t)), code)
+            );
+        }
+    };
+
     if !committed.is_empty() {
         println!("Committed prompts:");
         for (_, s, l, t) in &committed {
-            println!("{}", paint(&format!("  ● {l}  [{s}]  {t}"), GREEN));
+            render("  ●", s, l, t, GREEN);
         }
     }
     if !pending.is_empty() {
@@ -146,7 +163,7 @@ fn render_status_list(rows: &[(bool, String, String, String)]) {
         }
         println!("Pending prompts (not yet committed — commit to anchor):");
         for (_, s, l, t) in &pending {
-            println!("{}", paint(&format!("  ○ {l}  [{s}]  {t}"), RED));
+            render("  ○", s, l, t, RED);
         }
     }
     println!();
