@@ -4,6 +4,7 @@
 //! a function as `callers → function → callees` (EXAMPLES.md §4), and a
 //! variable as a vertical lifecycle chain.
 
+use petgraph::dot::{Config, Dot};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
 
@@ -112,6 +113,41 @@ pub fn var_graph(v: &VarFlow) -> String {
         }
     }
     out.join("\n")
+}
+
+/// Graphviz DOT for the function graph (pipe to `dot -Tsvg`).
+pub fn function_dot(f: &FunctionFlow) -> String {
+    let mut g: DiGraph<String, &str> = DiGraph::new();
+    let sig = format!(
+        "{}({}) -> {}",
+        f.name,
+        f.params.join(", "),
+        f.returns.as_deref().unwrap_or("?")
+    );
+    let fnode = g.add_node(sig);
+    for c in &f.callers {
+        let n = g.add_node(c.name.clone());
+        g.add_edge(n, fnode, "calls");
+    }
+    for c in &f.callees {
+        let n = g.add_node(c.name.clone());
+        g.add_edge(fnode, n, "uses");
+    }
+    format!("{}", Dot::with_config(&g, &[Config::EdgeNoLabel]))
+}
+
+/// Graphviz DOT for a variable's lifecycle chain.
+pub fn var_dot(v: &VarFlow) -> String {
+    let mut g: DiGraph<String, &str> = DiGraph::new();
+    let mut prev: Option<NodeIndex> = None;
+    for e in &v.events {
+        let n = g.add_node(format!("{} (line {})", e.kind.label(), e.line));
+        if let Some(p) = prev {
+            g.add_edge(p, n, "");
+        }
+        prev = Some(n);
+    }
+    format!("{}", Dot::with_config(&g, &[Config::EdgeNoLabel]))
 }
 
 fn neighbors(g: &DiGraph<String, &str>, node: NodeIndex, dir: Direction) -> Vec<String> {

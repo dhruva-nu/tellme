@@ -35,17 +35,19 @@ pub fn run(
         (Some(v), None) => {
             let flow = analyzer.var_flow(&src, v)?;
             match (graph, ctx.format) {
-                (true, OutputFormat::Text) => println!("{}", crate::graph::var_graph(&flow)),
                 (_, OutputFormat::Json) => print_var_json(&flow),
-                (false, OutputFormat::Text) => print_var_text(&flow),
+                (true, OutputFormat::Dot) => println!("{}", crate::graph::var_dot(&flow)),
+                (true, _) => println!("{}", crate::graph::var_graph(&flow)),
+                (false, _) => print_var_text(&flow),
             }
         }
         (None, Some(f)) => {
             let flow = analyzer.function_flow(&src, f)?;
             match (graph, ctx.format) {
-                (true, OutputFormat::Text) => println!("{}", crate::graph::function_graph(&flow)),
                 (_, OutputFormat::Json) => print_fn_json(&flow),
-                (false, OutputFormat::Text) => print_fn_text(&flow),
+                (true, OutputFormat::Dot) => println!("{}", crate::graph::function_dot(&flow)),
+                (true, _) => println!("{}", crate::graph::function_graph(&flow)),
+                (false, _) => print_fn_text(&flow),
             }
         }
         (Some(_), Some(_)) => {
@@ -172,7 +174,7 @@ fn run_history(ctx: &Ctx, file: &Path, var: Option<&str>, function: Option<&str>
     let result = blame::why(&store, &repo, &root, &rel, start, end)?;
     match ctx.format {
         OutputFormat::Json => print_history_json(&label, &rel, &result),
-        OutputFormat::Text => print_history_text(&label, &rel, &result),
+        _ => print_history_text(&label, &rel, &result),
     }
     Ok(())
 }

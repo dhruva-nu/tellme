@@ -46,11 +46,11 @@ impl Ctx {
     /// Emit a status + message in the active output format.
     pub fn emit(&self, status: &str, message: &str) {
         match self.format {
-            OutputFormat::Text => println!("{message}"),
             OutputFormat::Json => {
                 let obj = serde_json::json!({ "status": status, "message": message });
                 println!("{obj}");
             }
+            _ => println!("{message}"),
         }
     }
 }

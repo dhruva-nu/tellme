@@ -21,7 +21,7 @@ pub fn run(ctx: &Ctx, _file: &Path, endpoint: &str) -> Result<()> {
     let result = journey(&root, endpoint)?;
     match ctx.format {
         OutputFormat::Json => render_json(&result),
-        OutputFormat::Text => render_text(&result),
+        _ => render_text(&result),
     }
     Ok(())
 }
