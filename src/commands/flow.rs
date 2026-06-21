@@ -19,12 +19,6 @@ pub fn run(
     graph: bool,
     history: bool,
 ) -> Result<()> {
-    if graph {
-        return Err(Error::NotImplemented {
-            command: "flow --graph",
-            phase: "Phase 5: Graph Rendering",
-        });
-    }
     if history {
         return Err(Error::NotImplemented {
             command: "flow --history",
@@ -39,16 +33,18 @@ pub fn run(
     match (var, function) {
         (Some(v), None) => {
             let flow = analyzer.var_flow(&src, v)?;
-            match ctx.format {
-                OutputFormat::Json => print_var_json(&flow),
-                OutputFormat::Text => print_var_text(&flow),
+            match (graph, ctx.format) {
+                (true, OutputFormat::Text) => println!("{}", crate::graph::var_graph(&flow)),
+                (_, OutputFormat::Json) => print_var_json(&flow),
+                (false, OutputFormat::Text) => print_var_text(&flow),
             }
         }
         (None, Some(f)) => {
             let flow = analyzer.function_flow(&src, f)?;
-            match ctx.format {
-                OutputFormat::Json => print_fn_json(&flow),
-                OutputFormat::Text => print_fn_text(&flow),
+            match (graph, ctx.format) {
+                (true, OutputFormat::Text) => println!("{}", crate::graph::function_graph(&flow)),
+                (_, OutputFormat::Json) => print_fn_json(&flow),
+                (false, OutputFormat::Text) => print_fn_text(&flow),
             }
         }
         (Some(_), Some(_)) => {
