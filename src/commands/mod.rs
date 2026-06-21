@@ -6,6 +6,7 @@
 //! [`Error::NotImplemented`]: crate::error::Error::NotImplemented
 
 mod capture;
+mod flow;
 mod hook;
 mod init;
 mod prompt;
@@ -58,7 +59,20 @@ pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init => init::run(&ctx),
         Command::Why { file, target } => why::run(&ctx, &file, target.as_deref()),
-        Command::Flow { .. } => not_implemented("flow", "Phase 4: Data Flow Analysis"),
+        Command::Flow {
+            file,
+            var,
+            function,
+            graph,
+            history,
+        } => flow::run(
+            &ctx,
+            &file,
+            var.as_deref(),
+            function.as_deref(),
+            graph,
+            history,
+        ),
         Command::Journey { .. } => not_implemented("journey", "Phase 6: Cross-Layer Journey"),
         Command::Decision { command } => match command {
             DecisionCommand::Add { .. } => {
