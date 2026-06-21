@@ -21,8 +21,8 @@ pub struct Entry {
     pub time: i64,
     /// Session label/external id, if known.
     pub session: Option<String>,
-    /// The prompt text.
-    pub prompt: String,
+    /// The prompt text, if this entry comes from a prompt.
+    pub prompt: Option<String>,
     /// Decisions attached to the same anchor.
     pub decisions: Vec<String>,
 }
@@ -90,7 +90,25 @@ pub fn why(
             .iter()
             .filter_map(|d| store.read_text(&d.blob_hash).ok())
             .collect();
-        for prompt in store.prompts_for_anchor(anchor.id)? {
+        let prompts = store.prompts_for_anchor(anchor.id)?;
+
+        if prompts.is_empty() {
+            // A decision recorded without a captured prompt still matters.
+            if !decisions.is_empty() {
+                entries.push(Entry {
+                    commit_id: anchor.commit_id.clone(),
+                    commit_summary: meta.summary.clone(),
+                    author: meta.author_name.clone(),
+                    time: meta.time,
+                    session: None,
+                    prompt: None,
+                    decisions,
+                });
+            }
+            continue;
+        }
+
+        for (i, prompt) in prompts.iter().enumerate() {
             let session = store
                 .session_by_id(prompt.session_id)?
                 .and_then(|s| s.label.or(s.external_id));
@@ -100,8 +118,13 @@ pub fn why(
                 author: meta.author_name.clone(),
                 time: meta.time,
                 session,
-                prompt: store.read_text(&prompt.blob_hash).unwrap_or_default(),
-                decisions: decisions.clone(),
+                prompt: Some(store.read_text(&prompt.blob_hash).unwrap_or_default()),
+                // Attach the anchor's decisions once, to the first prompt.
+                decisions: if i == 0 {
+                    decisions.clone()
+                } else {
+                    Vec::new()
+                },
             });
         }
     }
@@ -174,10 +197,34 @@ mod tests {
         let r = why(&store, &repo, root, "checkout.py", 2, 2).unwrap();
         assert!(r.committed);
         assert_eq!(r.entries.len(), 1);
-        assert_eq!(r.entries[0].prompt, "add free shipping over $50");
+        assert_eq!(
+            r.entries[0].prompt.as_deref(),
+            Some("add free shipping over $50")
+        );
         assert_eq!(r.entries[0].session.as_deref(), Some("checkout-v1"));
         assert_eq!(r.entries[0].decisions, vec!["threshold is exclusive"]);
         assert_eq!(r.code.as_deref(), Some("ship = 0 if x else 7.99"));
+    }
+
+    #[test]
+    fn decision_without_prompt_still_surfaces() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        commit_file(root, "checkout.py", "a\nb\n");
+        let repo = Repo::discover(root).unwrap();
+        let commit = repo.head_commit().unwrap().unwrap();
+        let store = Store::create(&Layout::new(root)).unwrap();
+        let a = store
+            .create_anchor("checkout.py", 2, 2, &commit.id)
+            .unwrap();
+        store
+            .create_decision(a.id, "kept for clarity", Some("you"), None)
+            .unwrap();
+
+        let r = why(&store, &repo, root, "checkout.py", 2, 2).unwrap();
+        assert_eq!(r.entries.len(), 1);
+        assert!(r.entries[0].prompt.is_none());
+        assert_eq!(r.entries[0].decisions, vec!["kept for clarity"]);
     }
 
     #[test]
