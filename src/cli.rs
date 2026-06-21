@@ -8,7 +8,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use clap_complete::ArgValueCompleter;
 
+use crate::completion::complete_repo_file;
 use crate::config::OutputFormat;
 
 /// Top-level CLI: global flags plus a subcommand.
@@ -51,6 +53,7 @@ pub enum Command {
     /// Show the prompts that shaped a line (the signature feature).
     Why {
         /// Source file.
+        #[arg(value_hint = clap::ValueHint::FilePath, add = ArgValueCompleter::new(complete_repo_file))]
         file: PathBuf,
         /// Line selector, e.g. `#line4` or `4`.
         target: Option<String>,
@@ -59,6 +62,7 @@ pub enum Command {
     /// Trace data flow of a variable or function within a file.
     Flow {
         /// Source file.
+        #[arg(value_hint = clap::ValueHint::FilePath, add = ArgValueCompleter::new(complete_repo_file))]
         file: PathBuf,
         /// Trace a variable's lifecycle.
         #[arg(long, value_name = "NAME")]
@@ -77,6 +81,7 @@ pub enum Command {
     /// Trace a piece of data across architectural layers (DB → API).
     Journey {
         /// Source file containing the endpoint.
+        #[arg(value_hint = clap::ValueHint::FilePath, add = ArgValueCompleter::new(complete_repo_file))]
         file: PathBuf,
         /// Endpoint/controller name.
         #[arg(long, value_name = "NAME")]
@@ -118,6 +123,7 @@ pub enum DecisionCommand {
     /// Attach a written decision to a line or variable.
     Add {
         /// Source file.
+        #[arg(value_hint = clap::ValueHint::FilePath, add = ArgValueCompleter::new(complete_repo_file))]
         file: PathBuf,
         /// Attach to a variable (its first assignment line is used if --line is omitted).
         #[arg(long, value_name = "NAME")]
@@ -137,6 +143,7 @@ pub enum PromptCommand {
     /// Manually record a prompt against a committed line.
     Add {
         /// Source file.
+        #[arg(value_hint = clap::ValueHint::FilePath, add = ArgValueCompleter::new(complete_repo_file))]
         file: PathBuf,
         /// Line or range, e.g. `7` or `4-7`.
         #[arg(long, value_name = "N|N-M")]
@@ -151,7 +158,12 @@ pub enum PromptCommand {
     /// List recorded prompts.
     List {
         /// Only prompts touching this file.
-        #[arg(long, value_name = "PATH")]
+        #[arg(
+            long,
+            value_name = "PATH",
+            value_hint = clap::ValueHint::FilePath,
+            add = ArgValueCompleter::new(complete_repo_file)
+        )]
         file: Option<PathBuf>,
         /// Print the full prompt text instead of a one-line snippet.
         #[arg(long)]
