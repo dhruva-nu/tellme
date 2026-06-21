@@ -26,9 +26,42 @@ pub fn run(ctx: &Ctx, file: &Path, target: Option<&str>) -> Result<()> {
     let result = why(&store, &repo, &root, &rel, line_start, line_end)?;
     match ctx.format {
         OutputFormat::Json => render_json(&result),
+        _ if ctx.interactive && result.committed && !result.entries.is_empty() => browse(&result),
         _ => render_text(&result),
     }
     Ok(())
+}
+
+/// Interactive prompt-history browser for a single line/range.
+fn browse(r: &WhyResult) {
+    let loc = if r.line_start == r.line_end {
+        format!("{}:{}", r.file, r.line_start)
+    } else {
+        format!("{}:{}-{}", r.file, r.line_start, r.line_end)
+    };
+    let items: Vec<_> = r
+        .entries
+        .iter()
+        .map(|e| {
+            let short = &e.commit_id[..e.commit_id.len().min(8)];
+            let session = e.session.as_deref().unwrap_or("(unknown session)");
+            let label = format!("● {short}  {}  [{session}]", e.commit_summary);
+
+            let mut detail = format!("commit {short}   [{session}]\n{}\n\n", e.commit_summary);
+            match &e.prompt {
+                Some(p) => detail.push_str(&format!("YOU:\n{p}\n")),
+                None => detail.push_str("(decision only — no prompt)\n"),
+            }
+            for d in &e.decisions {
+                detail.push_str(&format!("\nDECISION:\n{d}\n"));
+            }
+            crate::tui::Item::new(label, detail)
+        })
+        .collect();
+    let browser = crate::tui::Browser::new(format!("why {loc}"), items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
 }
 
 fn render_text(r: &WhyResult) {

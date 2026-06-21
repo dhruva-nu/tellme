@@ -21,9 +21,43 @@ pub fn run(ctx: &Ctx, _file: &Path, endpoint: &str) -> Result<()> {
     let result = journey(&root, endpoint)?;
     match ctx.format {
         OutputFormat::Json => render_json(&result),
+        _ if ctx.interactive && !result.stages.is_empty() => browse(&result),
         _ => render_text(&result),
     }
     Ok(())
+}
+
+/// Interactive browser for a cross-layer data journey.
+fn browse(j: &Journey) {
+    use crate::tui::{Item, ItemStyle};
+    let mut items: Vec<_> = j
+        .stages
+        .iter()
+        .map(|s| {
+            let file = s.file.as_deref().unwrap_or("");
+            let label = format!("▾ {} — {}", s.layer.to_uppercase(), s.label);
+            let mut detail = format!("{}   {}\n\n{}", s.layer.to_uppercase(), s.label, s.note);
+            if !file.is_empty() {
+                detail.push_str(&format!("\n\n[{file}]"));
+            }
+            Item::new(label, detail).styled(ItemStyle::Accent)
+        })
+        .collect();
+
+    if !j.transformations.is_empty() {
+        let detail = j
+            .transformations
+            .iter()
+            .map(|t| format!("• {t}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        items.push(Item::new("⚙ transformations along the way", detail));
+    }
+
+    let browser = crate::tui::Browser::new(format!("journey: {}()", j.endpoint), items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
 }
 
 fn render_text(j: &Journey) {

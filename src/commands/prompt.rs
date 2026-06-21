@@ -122,9 +122,32 @@ pub fn list(ctx: &Ctx, file: Option<&Path>, full: bool) -> Result<()> {
                 .collect();
             println!("{}", serde_json::Value::Array(arr));
         }
+        _ if ctx.interactive && !rows.is_empty() => browse_prompts(&rows),
         _ => render_status_list(&rows, full),
     }
     Ok(())
+}
+
+/// Launch the interactive prompt browser. Committed prompts sort first (green),
+/// pending after (red), matching the plain `git status`-style grouping.
+fn browse_prompts(rows: &[(bool, String, String, String)]) {
+    let (committed, pending): (Vec<_>, Vec<_>) = rows.iter().partition(|(c, ..)| *c);
+    let mut items = Vec::new();
+    for (committed, s, l, t) in committed.iter().chain(pending.iter()) {
+        let (marker, style) = if *committed {
+            ("●", crate::tui::ItemStyle::Good)
+        } else {
+            ("○", crate::tui::ItemStyle::Bad)
+        };
+        let label = format!("{marker} {l}  [{s}]  {}", snippet(t));
+        let status = if *committed { "committed" } else { "pending" };
+        let detail = format!("{l}   [{s}]   ({status})\n\n{t}");
+        items.push(crate::tui::Item::new(label, detail).styled(style));
+    }
+    let browser = crate::tui::Browser::new("Prompts", items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
 }
 
 /// Render the prompt list git-status-style: green = committed, red = pending.

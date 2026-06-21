@@ -28,18 +28,28 @@ pub struct Ctx {
     pub start_dir: PathBuf,
     /// How to render output.
     pub format: OutputFormat,
+    /// Whether handlers may take over the terminal with an interactive UI.
+    pub interactive: bool,
 }
 
 impl Ctx {
     /// Build a context from parsed CLI flags.
     fn from_cli(cli: &Cli) -> Result<Self> {
+        use std::io::IsTerminal;
+
         let start_dir = match &cli.repo {
             Some(p) => p.clone(),
             None => env::current_dir()?,
         };
+        let format = cli.format.unwrap_or_default();
+        // Interactive only when the user hasn't opted out, stdout is a real
+        // terminal, and the format is the human-readable text default.
+        let interactive =
+            !cli.plain && format == OutputFormat::Text && std::io::stdout().is_terminal();
         Ok(Ctx {
             start_dir,
-            format: cli.format.unwrap_or_default(),
+            format,
+            interactive,
         })
     }
 

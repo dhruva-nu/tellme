@@ -78,6 +78,15 @@ impl Repo {
         }
     }
 
+    /// Look up commit metadata by full hex id, if the commit is reachable in
+    /// this repository. Returns `None` when the object isn't present (e.g. the
+    /// commit lives on a branch that isn't checked out / wasn't fetched).
+    pub fn commit_by_id(&self, id: &str) -> Option<CommitInfo> {
+        let oid = git2::Oid::from_str(id).ok()?;
+        let commit = self.inner.find_commit(oid).ok()?;
+        Some(commit_info(&commit))
+    }
+
     /// Whether the working tree or index has uncommitted changes.
     pub fn is_dirty(&self) -> Result<bool> {
         let mut opts = StatusOptions::new();

@@ -19,3 +19,4 @@ pub mod lineref;
 pub mod paths;
 pub mod reconcile;
 pub mod store;
+pub mod tui;

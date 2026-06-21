@@ -32,6 +32,11 @@ pub struct Cli {
     #[arg(long, global = true, value_enum)]
     pub format: Option<OutputFormat>,
 
+    /// Disable the interactive UI and print plain text (also implied when
+    /// output is piped or `--format` is not text).
+    #[arg(long, global = true)]
+    pub plain: bool,
+
     /// The subcommand to run.
     #[command(subcommand)]
     pub command: Command,

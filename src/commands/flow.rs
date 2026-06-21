@@ -38,6 +38,7 @@ pub fn run(
                 (_, OutputFormat::Json) => print_var_json(&flow),
                 (true, OutputFormat::Dot) => println!("{}", crate::graph::var_dot(&flow)),
                 (true, _) => println!("{}", crate::graph::var_graph(&flow)),
+                (false, _) if ctx.interactive && !flow.events.is_empty() => browse_var(&flow),
                 (false, _) => print_var_text(&flow),
             }
         }
@@ -47,6 +48,7 @@ pub fn run(
                 (_, OutputFormat::Json) => print_fn_json(&flow),
                 (true, OutputFormat::Dot) => println!("{}", crate::graph::function_dot(&flow)),
                 (true, _) => println!("{}", crate::graph::function_graph(&flow)),
+                (false, _) if ctx.interactive => browse_fn(&flow),
                 (false, _) => print_fn_text(&flow),
             }
         }
@@ -60,6 +62,76 @@ pub fn run(
         }
     }
     Ok(())
+}
+
+/// Interactive browser for a variable's lifecycle events.
+fn browse_var(flow: &VarFlow) {
+    let scope = flow
+        .function
+        .as_deref()
+        .map(|f| format!("function {f}"))
+        .unwrap_or_else(|| "module scope".into());
+    let items: Vec<_> = flow
+        .events
+        .iter()
+        .map(|e| {
+            let label = format!("▸ {:<12} line {:<4} {}", e.kind.label(), e.line, e.text);
+            let detail = format!(
+                "{}   (line {})\nscope: {scope}\n\n{}",
+                e.kind.label(),
+                e.line,
+                e.text
+            );
+            crate::tui::Item::new(label, detail)
+        })
+        .collect();
+    let browser = crate::tui::Browser::new(format!("flow: {} ({scope})", flow.name), items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
+}
+
+/// Interactive browser for a function's callers, callees, and signature.
+fn browse_fn(f: &FunctionFlow) {
+    use crate::tui::{Item, ItemStyle};
+    let mut items = Vec::new();
+
+    let sig = format!(
+        "in:  {}\nout: {}",
+        if f.params.is_empty() {
+            "(none)".into()
+        } else {
+            f.params.join(", ")
+        },
+        f.returns.as_deref().unwrap_or("(unannotated)")
+    );
+    items.push(
+        Item::new(
+            format!("ƒ {}  (line {})", f.name, f.line),
+            format!(
+                "function {}   (line {})\n\nSIGNATURE\n{sig}",
+                f.name, f.line
+            ),
+        )
+        .styled(ItemStyle::Accent),
+    );
+
+    for c in &f.callers {
+        items.push(Item::new(
+            format!("← called by {} (line {})", c.name, c.line),
+            format!("{} is called by {} at line {}", f.name, c.name, c.line),
+        ));
+    }
+    for c in &f.callees {
+        items.push(Item::new(
+            format!("→ calls {} (line {})", c.name, c.line),
+            format!("{} calls {} at line {}", f.name, c.name, c.line),
+        ));
+    }
+    let browser = crate::tui::Browser::new(format!("flow: {}()", f.name), items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
 }
 
 fn print_var_text(flow: &VarFlow) {
@@ -174,9 +246,47 @@ fn run_history(ctx: &Ctx, file: &Path, var: Option<&str>, function: Option<&str>
     let result = blame::why(&store, &repo, &root, &rel, start, end)?;
     match ctx.format {
         OutputFormat::Json => print_history_json(&label, &rel, &result),
+        _ if ctx.interactive && result.committed && !result.entries.is_empty() => {
+            browse_history(&label, &result)
+        }
         _ => print_history_text(&label, &rel, &result),
     }
     Ok(())
+}
+
+/// Interactive browser for a symbol's code+prompt+decision timeline.
+fn browse_history(label: &str, r: &WhyResult) {
+    let last = r.entries.len() - 1;
+    let items: Vec<_> = r
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let stage = if i == 0 {
+                "CREATED"
+            } else if i == last {
+                "LAST MODIFIED"
+            } else {
+                "MODIFIED"
+            };
+            let short = &e.commit_id[..e.commit_id.len().min(8)];
+            let session = e.session.as_deref().unwrap_or("-");
+            let lbl = format!("● {stage:<13} {short}  {}  [{session}]", e.commit_summary);
+
+            let mut detail = format!("{stage}   {short}   [{session}]\n{}\n", e.commit_summary);
+            if let Some(p) = &e.prompt {
+                detail.push_str(&format!("\nPROMPT:\n{p}\n"));
+            }
+            for d in &e.decisions {
+                detail.push_str(&format!("\nDECISION:\n{d}\n"));
+            }
+            crate::tui::Item::new(lbl, detail)
+        })
+        .collect();
+    let browser = crate::tui::Browser::new(format!("history: {label}"), items);
+    if let Err(e) = crate::tui::run(&browser) {
+        eprintln!("error: {e}");
+    }
 }
 
 fn print_history_text(label: &str, rel: &str, r: &WhyResult) {

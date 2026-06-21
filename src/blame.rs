@@ -1,7 +1,6 @@
 //! Prompt-blame query engine (#31): resolve a line to the prompts and
 //! decisions that shaped it, git-derived per `docs/anchors.md`.
 
-use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::Result;
@@ -57,34 +56,44 @@ pub fn why(
 ) -> Result<WhyResult> {
     let code = read_line(repo_root, file, line_start as usize);
 
-    // Commits that touched the line range (git-derived). If blame fails the
-    // line isn't committed yet.
-    let commits =
-        match repo.commits_touching(Path::new(file), line_start as usize, line_end as usize) {
-            Ok(c) => c,
-            Err(_) => {
-                return Ok(WhyResult {
-                    file: file.to_string(),
-                    line_start,
-                    line_end,
-                    code,
-                    committed: false,
-                    entries: Vec::new(),
-                })
-            }
-        };
-    let commit_meta: HashMap<String, _> =
-        commits.iter().map(|c| (c.id.clone(), c.clone())).collect();
+    // The file must have committed history for anchors to mean anything; a
+    // brand-new untracked file can't have recorded prompts. We do NOT gate
+    // individual anchors on which commit currently blames the line — a prompt
+    // belongs to its line regardless of uncommitted edits or which branch is
+    // checked out (see docs/anchors.md).
+    if repo
+        .commits_touching(Path::new(file), line_start as usize, line_end as usize)
+        .is_err()
+    {
+        return Ok(WhyResult {
+            file: file.to_string(),
+            line_start,
+            line_end,
+            code,
+            committed: false,
+            entries: Vec::new(),
+        });
+    }
 
-    // Anchors for this file whose commit is in the touching set and whose
-    // range overlaps the queried lines.
+    // Anchors for this file whose range overlaps the queried lines. Commit
+    // metadata is recovered directly from the anchor's recorded commit; if that
+    // commit isn't reachable on the current branch the prompt still shows, just
+    // with placeholder metadata.
     let mut entries = Vec::new();
     for anchor in store.anchors_for_file(file)? {
         let overlaps = anchor.line_start <= line_end && anchor.line_end >= line_start;
-        if !overlaps || !commit_meta.contains_key(&anchor.commit_id) {
+        if !overlaps {
             continue;
         }
-        let meta = &commit_meta[&anchor.commit_id];
+        let meta = repo.commit_by_id(&anchor.commit_id);
+        let (summary, author, ctime) = match &meta {
+            Some(m) => (m.summary.clone(), m.author_name.clone(), Some(m.time)),
+            None => (
+                "(commit not in current branch)".to_string(),
+                String::new(),
+                None,
+            ),
+        };
         let decisions: Vec<String> = store
             .decisions_for_anchor(anchor.id)?
             .iter()
@@ -97,9 +106,9 @@ pub fn why(
             if !decisions.is_empty() {
                 entries.push(Entry {
                     commit_id: anchor.commit_id.clone(),
-                    commit_summary: meta.summary.clone(),
-                    author: meta.author_name.clone(),
-                    time: meta.time,
+                    commit_summary: summary.clone(),
+                    author: author.clone(),
+                    time: ctime.unwrap_or(0),
                     session: None,
                     prompt: None,
                     decisions,
@@ -114,9 +123,11 @@ pub fn why(
                 .and_then(|s| s.label.or(s.external_id));
             entries.push(Entry {
                 commit_id: anchor.commit_id.clone(),
-                commit_summary: meta.summary.clone(),
-                author: meta.author_name.clone(),
-                time: meta.time,
+                commit_summary: summary.clone(),
+                author: author.clone(),
+                // Fall back to the prompt's own timestamp for ordering when the
+                // commit isn't reachable here.
+                time: ctime.unwrap_or(prompt.created_at),
                 session,
                 prompt: Some(store.read_text(&prompt.blob_hash).unwrap_or_default()),
                 // Attach the anchor's decisions once, to the first prompt.
@@ -204,6 +215,41 @@ mod tests {
         assert_eq!(r.entries[0].session.as_deref(), Some("checkout-v1"));
         assert_eq!(r.entries[0].decisions, vec!["threshold is exclusive"]);
         assert_eq!(r.code.as_deref(), Some("ship = 0 if x else 7.99"));
+    }
+
+    #[test]
+    fn surfaces_prompt_for_uncommitted_edited_line() {
+        // Regression: editing a line in the working tree makes git blame
+        // attribute it to the null commit. The prompt must still surface — an
+        // anchor is no longer gated on its commit currently blaming the line.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        commit_file(root, "checkout.py", "a\nship = 0 if x else 7.99\nb\n");
+        let repo = Repo::discover(root).unwrap();
+        let commit = repo.head_commit().unwrap().unwrap();
+
+        let store = Store::create(&Layout::new(root)).unwrap();
+        let s = store.create_session(Some("v1"), Some("v1")).unwrap();
+        let p = store
+            .create_prompt(s.id, 0, "free shipping over $50")
+            .unwrap();
+        let a = store
+            .create_anchor("checkout.py", 2, 2, &commit.id)
+            .unwrap();
+        store.create_edit(p.id, a.id).unwrap();
+
+        // Edit line 2 in the working tree without committing.
+        fs::write(root.join("checkout.py"), "a\nship = 0 if x else 4.99\nb\n").unwrap();
+
+        let r = why(&store, &repo, root, "checkout.py", 2, 2).unwrap();
+        assert!(r.committed);
+        assert_eq!(r.entries.len(), 1);
+        assert_eq!(
+            r.entries[0].prompt.as_deref(),
+            Some("free shipping over $50")
+        );
+        // Commit metadata is still recovered from the anchor's recorded commit.
+        assert_eq!(r.entries[0].commit_summary, "initial");
     }
 
     #[test]
