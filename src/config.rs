@@ -17,6 +17,8 @@ pub enum OutputFormat {
     Text,
     /// Machine-readable JSON.
     Json,
+    /// Graphviz DOT (only meaningful for `flow --graph`).
+    Dot,
 }
 
 /// On-disk configuration. Serialized as pretty JSON.

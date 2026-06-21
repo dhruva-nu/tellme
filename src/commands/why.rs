@@ -26,7 +26,7 @@ pub fn run(ctx: &Ctx, file: &Path, target: Option<&str>) -> Result<()> {
     let result = why(&store, &repo, &root, &rel, line_start, line_end)?;
     match ctx.format {
         OutputFormat::Json => render_json(&result),
-        OutputFormat::Text => render_text(&result),
+        _ => render_text(&result),
     }
     Ok(())
 }

@@ -102,7 +102,7 @@ pub fn list(ctx: &Ctx, file: Option<&Path>) -> Result<()> {
                 .collect();
             println!("{}", serde_json::Value::Array(arr));
         }
-        OutputFormat::Text => {
+        _ => {
             if rows.is_empty() {
                 println!("No prompts recorded yet.");
             } else {
