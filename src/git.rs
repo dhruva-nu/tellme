@@ -119,7 +119,7 @@ impl Repo {
                 }
             }
         }
-        out.sort_by(|a, b| b.time.cmp(&a.time));
+        out.sort_by_key(|c| std::cmp::Reverse(c.time));
         Ok(out)
     }
 }
