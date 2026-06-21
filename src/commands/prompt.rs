@@ -77,42 +77,93 @@ pub fn list(ctx: &Ctx, file: Option<&Path>) -> Result<()> {
     let mut rows = Vec::new();
     for p in prompts {
         let anchors = store.anchors_for_prompt(p.id)?;
+        let pending = store.pending_edits_for_prompt(p.id)?;
         if let Some(want) = &filter {
-            if !anchors.iter().any(|a| &a.file == want) {
+            let hit =
+                anchors.iter().any(|a| &a.file == want) || pending.iter().any(|e| &e.file == want);
+            if !hit {
                 continue;
             }
         }
-        let loc = anchors
-            .first()
-            .map(|a| format!("{}:{}-{}", a.file, a.line_start, a.line_end))
-            .unwrap_or_else(|| "(unanchored)".into());
+        // A prompt is "committed" once its edit is anchored; until then it is
+        // pending (captured but waiting on a commit), like git status.
+        let committed = !anchors.is_empty();
+        let location = if committed {
+            anchors
+                .first()
+                .map(|a| format!("{}:{}-{}", a.file, a.line_start, a.line_end))
+                .unwrap()
+        } else if let Some(e) = pending.first() {
+            format!("{}:{}-{}", e.file, e.line_start, e.line_end)
+        } else {
+            "(no location yet)".into()
+        };
         let session = store
             .session_by_id(p.session_id)?
             .and_then(|s| s.label.or(s.external_id))
             .unwrap_or_else(|| "?".into());
         let text = store.read_text(&p.blob_hash).unwrap_or_default();
-        rows.push((session, loc, snippet(&text)));
+        rows.push((committed, session, location, snippet(&text)));
     }
 
     match ctx.format {
         OutputFormat::Json => {
             let arr: Vec<_> = rows
                 .iter()
-                .map(|(s, l, t)| json!({ "session": s, "location": l, "text": t }))
+                .map(|(committed, s, l, t)| {
+                    json!({
+                        "status": if *committed { "committed" } else { "pending" },
+                        "session": s,
+                        "location": l,
+                        "text": t,
+                    })
+                })
                 .collect();
             println!("{}", serde_json::Value::Array(arr));
         }
-        _ => {
-            if rows.is_empty() {
-                println!("No prompts recorded yet.");
-            } else {
-                for (s, l, t) in rows {
-                    println!("{l}  [{s}]  {t}");
-                }
-            }
-        }
+        _ => render_status_list(&rows),
     }
     Ok(())
+}
+
+/// Render the prompt list git-status-style: green = committed, red = pending.
+fn render_status_list(rows: &[(bool, String, String, String)]) {
+    if rows.is_empty() {
+        println!("No prompts recorded yet.");
+        return;
+    }
+    let (committed, pending): (Vec<_>, Vec<_>) = rows.iter().partition(|(c, ..)| *c);
+
+    if !committed.is_empty() {
+        println!("Committed prompts:");
+        for (_, s, l, t) in &committed {
+            println!("{}", paint(&format!("  ● {l}  [{s}]  {t}"), GREEN));
+        }
+    }
+    if !pending.is_empty() {
+        if !committed.is_empty() {
+            println!();
+        }
+        println!("Pending prompts (not yet committed — commit to anchor):");
+        for (_, s, l, t) in &pending {
+            println!("{}", paint(&format!("  ○ {l}  [{s}]  {t}"), RED));
+        }
+    }
+    println!();
+    println!("{} committed, {} pending", committed.len(), pending.len());
+}
+
+const RED: &str = "31";
+const GREEN: &str = "32";
+
+/// Wrap `s` in an ANSI color when stdout is a color-capable terminal.
+fn paint(s: &str, code: &str) -> String {
+    use std::io::IsTerminal;
+    if std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none() {
+        format!("\x1b[{code}m{s}\x1b[0m")
+    } else {
+        s.to_string()
+    }
 }
 
 /// First line of `text`, truncated for a one-line listing.
