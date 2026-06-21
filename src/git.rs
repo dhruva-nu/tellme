@@ -47,6 +47,11 @@ impl Repo {
         Ok(Repo { inner })
     }
 
+    /// The git directory (the `.git` folder).
+    pub fn git_dir(&self) -> PathBuf {
+        self.inner.path().to_path_buf()
+    }
+
     /// The working directory (errors for bare repos).
     pub fn workdir(&self) -> Result<PathBuf> {
         self.inner
@@ -72,6 +77,16 @@ impl Repo {
     pub fn is_dirty(&self) -> Result<bool> {
         let mut opts = StatusOptions::new();
         opts.include_untracked(true).include_ignored(false);
+        let statuses = self.inner.statuses(Some(&mut opts))?;
+        Ok(!statuses.is_empty())
+    }
+
+    /// Whether a specific repo-relative path has uncommitted changes.
+    pub fn is_path_dirty(&self, file: &Path) -> Result<bool> {
+        let mut opts = StatusOptions::new();
+        opts.include_untracked(true)
+            .include_ignored(false)
+            .pathspec(file);
         let statuses = self.inner.statuses(Some(&mut opts))?;
         Ok(!statuses.is_empty())
     }

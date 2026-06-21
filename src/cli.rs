@@ -91,6 +91,20 @@ pub enum Command {
         #[command(subcommand)]
         command: PromptCommand,
     },
+
+    /// Ingest a Claude Code hook event from stdin (used by installed hooks).
+    #[command(hide = true)]
+    Capture,
+
+    /// Promote captured edits to anchors for newly committed code.
+    Reconcile,
+
+    /// Install or remove the capture hooks.
+    Hook {
+        /// Hook subcommand.
+        #[command(subcommand)]
+        command: HookCommand,
+    },
 }
 
 /// `tellme decision ...`
@@ -112,11 +126,41 @@ pub enum DecisionCommand {
 /// `tellme prompt ...`
 #[derive(Debug, Subcommand)]
 pub enum PromptCommand {
-    /// Manually record a prompt.
+    /// Manually record a prompt against a committed line.
     Add {
+        /// Source file.
+        file: PathBuf,
+        /// Line or range, e.g. `7` or `4-7`.
+        #[arg(long, value_name = "N|N-M")]
+        line: String,
+        /// Session label to group the prompt under.
+        #[arg(long, value_name = "LABEL")]
+        session: Option<String>,
         /// Prompt text; if omitted, read from stdin.
-        text: Option<String>,
+        #[arg(short = 'm', long, value_name = "TEXT")]
+        message: Option<String>,
     },
     /// List recorded prompts.
-    List,
+    List {
+        /// Only prompts touching this file.
+        #[arg(long, value_name = "PATH")]
+        file: Option<PathBuf>,
+    },
+}
+
+/// `tellme hook ...`
+#[derive(Debug, Subcommand)]
+pub enum HookCommand {
+    /// Install Claude Code + git hooks that capture prompts and edits.
+    Install {
+        /// Print planned changes without writing them.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Remove the hooks installed by `install`.
+    Uninstall {
+        /// Print planned changes without writing them.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }

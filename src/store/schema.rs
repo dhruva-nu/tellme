@@ -9,7 +9,7 @@ use rusqlite::Connection;
 use crate::error::Result;
 
 /// Ordered list of migrations. Append new ones; never edit applied ones.
-const MIGRATIONS: &[(i64, &str)] = &[(1, V1)];
+const MIGRATIONS: &[(i64, &str)] = &[(1, V1), (2, V2)];
 
 /// Initial schema: sessions, prompts, anchors, edits, decisions.
 const V1: &str = r#"
@@ -61,6 +61,21 @@ CREATE TABLE decision (
 CREATE INDEX idx_decision_anchor ON decision(anchor_id);
 "#;
 
+/// v2: pending edits captured during an agent session, before they are
+/// committed and can be turned into git-derived anchors (see reconcile).
+const V2: &str = r#"
+CREATE TABLE pending_edit (
+    id         INTEGER PRIMARY KEY,
+    prompt_id  INTEGER NOT NULL REFERENCES prompt(id),
+    file       TEXT    NOT NULL,             -- repo-relative path
+    line_start INTEGER NOT NULL,
+    line_end   INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_pending_edit_prompt ON pending_edit(prompt_id);
+CREATE INDEX idx_pending_edit_file   ON pending_edit(file);
+"#;
+
 /// Apply all pending migrations to `conn`. Idempotent.
 pub fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
@@ -100,5 +115,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn v2_adds_pending_edit() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='pending_edit'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn migrates_v1_db_up_to_v2() {
+        // Start at v1 only, then run the full migration set.
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("BEGIN;").unwrap();
+        conn.execute_batch(V1).unwrap();
+        conn.execute_batch("PRAGMA user_version = 1; COMMIT;")
+            .unwrap();
+        migrate(&conn).unwrap();
+        let v: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 2);
     }
 }

@@ -10,6 +10,32 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::error::{Error, Result};
+
+/// Convert a path (relative to `cwd` or absolute) into a clean, repo-relative
+/// path string for blame and anchor lookup.
+///
+/// Resolves against `cwd`, then strips `repo_root`. Both are canonicalized so
+/// symlinks and `..` don't defeat the prefix match. Errors if the resulting
+/// path lies outside the repository.
+pub fn repo_relative(repo_root: &Path, cwd: &Path, path: &Path) -> Result<String> {
+    let abs = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+    let abs = abs
+        .canonicalize()
+        .map_err(|_| Error::Other(format!("no such file: {}", path.display())))?;
+    let root = repo_root
+        .canonicalize()
+        .unwrap_or_else(|_| repo_root.to_path_buf());
+    let rel = abs
+        .strip_prefix(&root)
+        .map_err(|_| Error::Other(format!("{} is outside the repository", path.display())))?;
+    Ok(rel.to_string_lossy().replace('\\', "/"))
+}
+
 /// Resolved paths for a repository's `.tellme/` store.
 #[derive(Debug, Clone)]
 pub struct Layout {

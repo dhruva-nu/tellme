@@ -74,3 +74,21 @@ pub struct Decision {
     /// When the decision was recorded (unix seconds).
     pub created_at: i64,
 }
+
+/// An edit captured during a session but not yet committed, so it has no
+/// commit id and cannot be a git-derived anchor yet (see reconcile).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingEdit {
+    /// Row id.
+    pub id: i64,
+    /// Prompt that produced the edit.
+    pub prompt_id: i64,
+    /// Repo-relative file path.
+    pub file: String,
+    /// First line (one-based, inclusive).
+    pub line_start: i64,
+    /// Last line (one-based, inclusive).
+    pub line_end: i64,
+    /// When the edit was captured (unix seconds).
+    pub created_at: i64,
+}
