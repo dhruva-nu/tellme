@@ -1,36 +1,28 @@
 //! tellme — git blame, but for prompts and decisions.
 //!
-//! This is the scaffolding entry point (issue #9). The full subcommand surface
-//! (`why`, `flow`, `journey`, `decision`, `prompt`, `init`) is built in #10.
+//! Thin binary entry point: parse the CLI, set up logging, dispatch to a
+//! command handler, and map any [`tellme::error::Error`] to a user-readable
+//! message + process exit code. The real logic lives in the `tellme` library.
 
-use anyhow::Result;
+use std::process::ExitCode;
+
 use clap::Parser;
+use tellme::cli::Cli;
+use tellme::commands;
 use tracing_subscriber::EnvFilter;
 
-/// Top-level CLI definition.
-#[derive(Debug, Parser)]
-#[command(
-    name = "tellme",
-    version,
-    about = "Git blame, but for prompts and decisions.",
-    long_about = None
-)]
-struct Cli {
-    /// Increase log verbosity (-v debug, -vv trace).
-    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
-    verbose: u8,
-}
-
-fn main() -> Result<()> {
+fn main() -> ExitCode {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
 
     tracing::debug!("tellme v{} starting", env!("CARGO_PKG_VERSION"));
-    println!(
-        "tellme v{} — scaffolding in place. Commands land in #10.",
-        env!("CARGO_PKG_VERSION")
-    );
-    Ok(())
+    match commands::dispatch(cli) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("error: {err}");
+            ExitCode::from(err.exit_code() as u8)
+        }
+    }
 }
 
 /// Configure `tracing` from the `-v` count, honouring `RUST_LOG` if set.
@@ -47,22 +39,4 @@ fn init_tracing(verbose: u8) {
         .with_env_filter(filter)
         .with_target(false)
         .init();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::CommandFactory;
-
-    #[test]
-    fn cli_definition_is_valid() {
-        // Panics at test time if the clap derive is misconfigured.
-        Cli::command().debug_assert();
-    }
-
-    #[test]
-    fn parses_verbose_flags() {
-        let cli = Cli::try_parse_from(["tellme", "-vv"]).unwrap();
-        assert_eq!(cli.verbose, 2);
-    }
 }
