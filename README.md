@@ -22,7 +22,19 @@ Early development. Tracked by milestones on
 [GitHub](https://github.com/dhruva-nu/tellme/milestones); Phase 1 lays the
 foundation (CLI skeleton, storage, git integration).
 
-## Build
+## Install
+
+```sh
+./install.sh                      # build release + install onto your PATH
+BINDIR=~/.local/bin ./install.sh  # choose the install directory
+./install.sh --uninstall          # remove it
+```
+
+The script builds in release mode and installs the `tellme` binary to
+`/usr/local/bin` (using `sudo` only if needed) or `~/.local/bin`. Requires a
+stable Rust toolchain — install from <https://rustup.rs>.
+
+## Build from source
 
 ```sh
 cargo build
