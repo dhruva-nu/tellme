@@ -9,6 +9,10 @@ readme = "README.md"
 keywords = ["cli", "documentation", "git", "ai", "provenance"]
 categories = ["command-line-utilities", "development-tools"]
 
+[lib]
+name = "tellme"
+path = "src/lib.rs"
+
 [[bin]]
 name = "tellme"
 path = "src/main.rs"
@@ -21,6 +25,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+git2 = { version = "0.19", default-features = false }
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints.rust]
 unsafe_code = "forbid"
