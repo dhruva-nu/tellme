@@ -106,28 +106,23 @@ impl Analyzer for Python {
         let mut function: Option<String> = None;
 
         walk(root, &mut |n| match n.kind() {
-            "assignment" => {
-                if let Some(left) = n.child_by_field_name("left") {
-                    if left.kind() == "identifier" && node_text(left, src) == var {
+            "assignment" | "augmented_assignment" => {
+                let target = n
+                    .child_by_field_name("left")
+                    .filter(|l| l.kind() == "identifier" && node_text(*l, src) == var);
+                if let Some(left) = target {
+                    target_ids.insert(left.id());
+                    if n.kind() == "assignment" {
                         assign_targets.push((line_of(left), left.id()));
-                        target_ids.insert(left.id());
-                    }
-                }
-            }
-            "augmented_assignment" => {
-                if let Some(left) = n.child_by_field_name("left") {
-                    if left.kind() == "identifier" && node_text(left, src) == var {
+                    } else {
                         augmented.push(line_of(left));
-                        target_ids.insert(left.id());
                     }
                 }
             }
-            "identifier" => {
-                if node_text(n, src) == var {
-                    occurrences.push((line_of(n), n.id()));
-                    if function.is_none() {
-                        function = enclosing_function(n, src);
-                    }
+            "identifier" if node_text(n, src) == var => {
+                occurrences.push((line_of(n), n.id()));
+                if function.is_none() {
+                    function = enclosing_function(n, src);
                 }
             }
             _ => {}
