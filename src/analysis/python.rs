@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use tree_sitter::{Node, Parser, Tree};
 
-use super::{Analyzer, Call, FunctionFlow, VarEvent, VarEventKind, VarFlow};
+use super::{Analyzer, Call, FunctionDef, FunctionFlow, VarEvent, VarEventKind, VarFlow};
 use crate::error::{Error, Result};
 
 /// A tree-sitter-backed Python analyzer.
@@ -246,6 +246,47 @@ impl Analyzer for Python {
             callers,
             callees,
         })
+    }
+
+    fn functions(&self, src: &str) -> Result<Vec<FunctionDef>> {
+        let tree = self.parse(src)?;
+        let mut defs = Vec::new();
+        walk(tree.root_node(), &mut |n| {
+            if n.kind() != "function_definition" {
+                return;
+            }
+            let Some(name) = n.child_by_field_name("name") else {
+                return;
+            };
+            let mut callees = Vec::new();
+            let mut returns = Vec::new();
+            if let Some(body) = n.child_by_field_name("body") {
+                let mut seen = std::collections::HashSet::new();
+                walk(body, &mut |m| match m.kind() {
+                    "call" => {
+                        if let Some(cn) = call_name(m, src) {
+                            let line = line_of(m);
+                            if seen.insert((cn.clone(), line)) {
+                                callees.push(Call { name: cn, line });
+                            }
+                        }
+                    }
+                    "return_statement" => {
+                        if let Some(expr) = m.named_child(0) {
+                            returns.push(node_text(expr, src).to_string());
+                        }
+                    }
+                    _ => {}
+                });
+            }
+            defs.push(FunctionDef {
+                name: node_text(name, src).to_string(),
+                line: line_of(n),
+                callees,
+                returns,
+            });
+        });
+        Ok(defs)
     }
 }
 

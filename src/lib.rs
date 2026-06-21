@@ -14,6 +14,7 @@ pub mod config;
 pub mod error;
 pub mod git;
 pub mod graph;
+pub mod journey;
 pub mod lineref;
 pub mod paths;
 pub mod reconcile;

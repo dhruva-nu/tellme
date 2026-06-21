@@ -9,6 +9,7 @@ mod capture;
 mod flow;
 mod hook;
 mod init;
+mod journey;
 mod prompt;
 mod reconcile;
 mod why;
@@ -73,7 +74,7 @@ pub fn dispatch(cli: Cli) -> Result<()> {
             graph,
             history,
         ),
-        Command::Journey { .. } => not_implemented("journey", "Phase 6: Cross-Layer Journey"),
+        Command::Journey { file, endpoint } => journey::run(&ctx, &file, &endpoint),
         Command::Decision { command } => match command {
             DecisionCommand::Add { .. } => {
                 not_implemented("decision add", "Phase 7: Decision Editor")

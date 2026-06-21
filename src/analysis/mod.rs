@@ -82,12 +82,27 @@ pub struct FunctionFlow {
     pub callees: Vec<Call>,
 }
 
+/// A function definition with the data needed for cross-layer tracing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionDef {
+    /// Function name.
+    pub name: String,
+    /// One-based line of the definition.
+    pub line: usize,
+    /// Calls made in the body.
+    pub callees: Vec<Call>,
+    /// Return expression texts (one per `return`).
+    pub returns: Vec<String>,
+}
+
 /// A language-specific source analyzer.
 pub trait Analyzer {
     /// Trace a variable's lifecycle.
     fn var_flow(&self, src: &str, var: &str) -> Result<VarFlow>;
     /// Trace a function's callers, callees, and signature.
     fn function_flow(&self, src: &str, func: &str) -> Result<FunctionFlow>;
+    /// Enumerate every function definition in the source.
+    fn functions(&self, src: &str) -> Result<Vec<FunctionDef>>;
 }
 
 /// Pick an analyzer for a file by extension. v1 supports Python.
