@@ -5,12 +5,16 @@
 //!
 //! [`Error::NotImplemented`]: crate::error::Error::NotImplemented
 
+mod capture;
+mod hook;
 mod init;
+mod prompt;
+mod reconcile;
 
 use std::env;
 use std::path::PathBuf;
 
-use crate::cli::{Cli, Command, DecisionCommand, PromptCommand};
+use crate::cli::{Cli, Command, DecisionCommand, HookCommand, PromptCommand};
 use crate::config::OutputFormat;
 use crate::error::{Error, Result};
 
@@ -61,12 +65,19 @@ pub fn dispatch(cli: Cli) -> Result<()> {
             }
         },
         Command::Prompt { command } => match command {
-            PromptCommand::Add { .. } => {
-                not_implemented("prompt add", "Phase 2: Prompt Capture & Ingestion")
-            }
-            PromptCommand::List => {
-                not_implemented("prompt list", "Phase 2: Prompt Capture & Ingestion")
-            }
+            PromptCommand::Add {
+                file,
+                line,
+                session,
+                message,
+            } => prompt::add(&ctx, &file, &line, session.as_deref(), message),
+            PromptCommand::List { file } => prompt::list(&ctx, file.as_deref()),
+        },
+        Command::Capture => capture::run(&ctx),
+        Command::Reconcile => reconcile::run(&ctx),
+        Command::Hook { command } => match command {
+            HookCommand::Install { dry_run } => hook::install(&ctx, dry_run),
+            HookCommand::Uninstall { dry_run } => hook::uninstall(&ctx, dry_run),
         },
     }
 }

@@ -16,6 +16,28 @@ tellme decision add checkout.py --line 7   # write down WHY
 See [`PLAN.md`](./PLAN.md) for the technical plan, [`MBA.md`](./MBA.md) for the
 product brief, and [`EXAMPLES.md`](./EXAMPLES.md) for a feature walk-through.
 
+## Capturing prompts
+
+`tellme` records the prompt behind each change live, then versions it with git.
+
+```sh
+tellme init            # create the .tellme/ store
+tellme hook install    # add Claude Code capture hooks + a git post-commit hook
+```
+
+From then on, an agent session's prompts and the edits they produce are captured
+automatically; on each commit they're reconciled into git-derived anchors. No
+agent? Record one by hand:
+
+```sh
+tellme prompt add checkout.py --line 3 -m "free shipping over $50, else flat 7.99"
+tellme prompt list --file checkout.py
+```
+
+Under the hood: `tellme capture` ingests a hook event from stdin, `tellme
+reconcile` promotes captured edits to anchors once committed, and `tellme hook
+uninstall` removes the hooks.
+
 ## Status
 
 Early development. Tracked by milestones on

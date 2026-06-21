@@ -5,10 +5,12 @@
 //! integration, and configuration. Many items here are the foundation that
 //! later roadmap phases (Prompt Blame, Data Flow, …) build on.
 
+pub mod capture;
 pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod error;
 pub mod git;
 pub mod paths;
+pub mod reconcile;
 pub mod store;
